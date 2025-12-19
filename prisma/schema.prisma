@@ -1,0 +1,350 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  name          String?
+  password      String?
+  image         String?
+  role          String    @default("user") // user, admin, moderator
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  profile           Profile?
+  accounts          Account[]
+  sessions          Session[]
+  studies           Study[]
+  answers           Answer[]
+  prayerRequests    PrayerRequest[]
+  purchases         Purchase[]
+  groupMemberships  GroupMembership[]
+  groupModerators   GroupModerator[]
+  discussionPosts   DiscussionPost[]
+  discussionReplies DiscussionReply[]
+  auditLogs         AuditLog[]
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model Profile {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  firstName   String?
+  lastName    String?
+  bio         String?  @db.Text
+  avatar      String?
+  phoneNumber String?
+  timezone    String?  @default("UTC")
+  preferences Json?    // Store user preferences as JSON
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("profiles")
+}
+
+model Study {
+  id          String   @id @default(cuid())
+  title       String
+  description String?  @db.Text
+  coverImage  String?
+  authorId    String
+  isPublished Boolean  @default(false)
+  isPremium   Boolean  @default(false)
+  price       Decimal? @default(0) @db.Decimal(10, 2)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  author User    @relation(fields: [authorId], references: [id])
+  weeks  Week[]
+  purchases Purchase[]
+
+  @@index([authorId])
+  @@index([isPublished])
+  @@index([isPremium])
+  @@map("studies")
+}
+
+model Week {
+  id          String   @id @default(cuid())
+  studyId     String
+  weekNumber  Int
+  title       String
+  description String?   @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  study Study @relation(fields: [studyId], references: [id], onDelete: Cascade)
+  days  Day[]
+
+  @@unique([studyId, weekNumber])
+  @@index([studyId])
+  @@map("weeks")
+}
+
+model Day {
+  id          String   @id @default(cuid())
+  weekId      String
+  dayNumber   Int
+  title       String
+  content     String?  @db.Text
+  scripture   String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  week     Week      @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  questions Question[]
+
+  @@unique([weekId, dayNumber])
+  @@index([weekId])
+  @@map("days")
+}
+
+model Question {
+  id          String   @id @default(cuid())
+  dayId       String
+  questionText String   @db.Text
+  questionType String   @default("text") // text, multiple_choice, reflection
+  order       Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  day    Day     @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  answers Answer[]
+
+  @@index([dayId])
+  @@index([dayId, order])
+  @@map("questions")
+}
+
+model Answer {
+  id         String   @id @default(cuid())
+  questionId String
+  userId     String
+  answerText String   @db.Text
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId, userId])
+  @@index([questionId])
+  @@index([userId])
+  @@map("answers")
+}
+
+model PrayerRequest {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String
+  content     String   @db.Text
+  isPublic    Boolean  @default(false)
+  isAnswered  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isPublic])
+  @@index([isAnswered])
+  @@map("prayer_requests")
+}
+
+model Purchase {
+  id          String   @id @default(cuid())
+  userId      String
+  studyId     String
+  amount      Decimal  @db.Decimal(10, 2)
+  status      String   @default("pending") // pending, completed, failed, refunded
+  paymentId   String?  // External payment processor ID
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  study Study @relation(fields: [studyId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([studyId])
+  @@index([status])
+  @@map("purchases")
+}
+
+model Group {
+  id          String   @id @default(cuid())
+  name        String
+  description String?  @db.Text
+  coverImage  String?
+  isPublic    Boolean  @default(true)
+  maxMembers  Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  memberships GroupMembership[]
+  moderators  GroupModerator[]
+  posts       DiscussionPost[]
+
+  @@index([isPublic])
+  @@map("groups")
+}
+
+model GroupMembership {
+  id        String   @id @default(cuid())
+  groupId   String
+  userId    String
+  role      String   @default("member") // member, admin
+  joinedAt  DateTime @default(now())
+  leftAt    DateTime?
+
+  // Relations
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([groupId])
+  @@index([userId])
+  @@map("group_memberships")
+}
+
+model GroupModerator {
+  id        String   @id @default(cuid())
+  groupId   String
+  userId    String
+  createdAt DateTime  @default(now())
+
+  // Relations
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([groupId])
+  @@index([userId])
+  @@map("group_moderators")
+}
+
+model DiscussionPost {
+  id          String   @id @default(cuid())
+  groupId     String
+  userId      String
+  title       String
+  content     String   @db.Text
+  isPinned    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  group   Group           @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replies DiscussionReply[]
+
+  @@index([groupId])
+  @@index([userId])
+  @@index([isPinned])
+  @@index([createdAt])
+  @@map("discussion_posts")
+}
+
+model DiscussionReply {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  post DiscussionPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("discussion_replies")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String   // create, update, delete, login, etc.
+  entityType String? // User, Study, Group, etc.
+  entityId  String?
+  details   Json?    // Additional details about the action
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

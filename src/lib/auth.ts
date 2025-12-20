@@ -39,7 +39,7 @@ export const authOptions: NextAuthOptions = {
         });
 
         if (!validationResult.success) {
-          const errorMessage = validationResult.error.errors
+          const errorMessage = validationResult.error.issues
             .map((err) => err.message)
             .join(", ");
           throw new Error(errorMessage);

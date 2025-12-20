@@ -72,6 +72,14 @@ export default function Navbar({ user }: NavbarProps) {
               >
                 My Studies
               </Link>
+              {user.role === "admin" && (
+                <Link
+                  href="/admin/upload"
+                  className="rounded-md px-3 py-2 text-sm font-medium text-amber-600 hover:bg-amber-50 hover:text-amber-700"
+                >
+                  Upload Study
+                </Link>
+              )}
             </div>
           </div>
 
@@ -135,6 +143,15 @@ export default function Navbar({ user }: NavbarProps) {
                 >
                   Settings
                 </Link>
+                {user.role === "admin" && (
+                  <Link
+                    href="/admin/upload"
+                    className="block px-4 py-2 text-sm text-amber-600 hover:bg-amber-50"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Upload Study
+                  </Link>
+                )}
                 <button
                   onClick={handleSignOut}
                   className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
@@ -162,6 +179,14 @@ export default function Navbar({ user }: NavbarProps) {
           >
             My Studies
           </Link>
+          {user.role === "admin" && (
+            <Link
+              href="/admin/upload"
+              className="block rounded-md px-3 py-2 text-base font-medium text-amber-600 hover:bg-amber-50 hover:text-amber-700"
+            >
+              Upload Study
+            </Link>
+          )}
         </div>
       </div>
     </nav>

@@ -25,7 +25,6 @@ model User {
   profile           Profile?
   accounts          Account[]
   sessions          Session[]
-  studies           Study[]
   answers           Answer[]
   prayerRequests    PrayerRequest[]
   purchases         Purchase[]
@@ -105,7 +104,7 @@ model Study {
   title       String
   description String?  @db.Text
   coverImage  String?
-  authorId    String
+  author      String?  // Author name as text (e.g., "Sophron Studies")
   isPublished Boolean  @default(false)
   isPremium   Boolean  @default(false)
   price       Decimal? @default(0) @db.Decimal(10, 2)
@@ -113,11 +112,9 @@ model Study {
   updatedAt   DateTime @updatedAt
 
   // Relations
-  author User    @relation(fields: [authorId], references: [id])
   weeks  Week[]
   purchases Purchase[]
 
-  @@index([authorId])
   @@index([isPublished])
   @@index([isPremium])
   @@map("studies")
@@ -216,14 +213,15 @@ model PrayerRequest {
 }
 
 model Purchase {
-  id          String   @id @default(cuid())
-  userId      String
-  studyId     String
-  amount      Decimal  @db.Decimal(10, 2)
-  status      String   @default("pending") // pending, completed, failed, refunded
-  paymentId   String?  // External payment processor ID
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String    @id @default(cuid())
+  userId         String
+  studyId        String
+  amount         Decimal   @db.Decimal(10, 2)
+  status         String    @default("pending") // pending, completed, failed, refunded
+  paymentId      String?   // External payment processor ID
+  accessExpiresAt DateTime? // When access to the study expires
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   // Relations
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)

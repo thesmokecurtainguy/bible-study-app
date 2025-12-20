@@ -52,6 +52,8 @@ export interface ParseResult {
 // System prompt for Bible study parsing
 const BIBLE_STUDY_PARSING_SYSTEM_PROMPT = `You are an expert at parsing Bible study documents. Your task is to analyze document text and extract structured content.
 
+CRITICAL: Your response must be ONLY a valid JSON object. No markdown, no code blocks, no explanatory text before or after. Start your response with { and end with }.
+
 Bible study documents typically have this hierarchy:
 - Study (the entire document) contains multiple Lessons/Weeks
 - Each Lesson/Week contains multiple Days (usually 5 days per week)
@@ -64,66 +66,80 @@ Common patterns to look for:
 - Scripture references: Book Chapter:Verse format (e.g., "1 Timothy 1:3-7", "John 3:16")
 - Instructional content: Explanatory text between questions
 
-You must output ONLY valid JSON in one of these formats:
+Response format (choose ONE):
 
-1. If you can parse the document successfully:
-{
-  "success": true,
-  "study": {
-    "title": "Study Title",
-    "description": "Brief description of the study",
-    "author": "Author name if found, or null",
-    "weeks": [
-      {
-        "weekNumber": 1,
-        "title": "Lesson One: Title Here",
-        "description": "Week description if available",
-        "days": [
-          {
-            "dayNumber": 1,
-            "title": "One: Day Title",
-            "content": "Instructional content for the day",
-            "scripture": "Scripture references for the day",
-            "questions": [
-              {
-                "questionText": "The full question text",
-                "questionType": "text",
-                "order": 1
-              }
-            ]
-          }
-        ]
-      }
-    ]
+FORMAT 1 - Successful parse:
+{"success":true,"study":{"title":"Study Title","description":"Brief description","author":"Author name or null","weeks":[{"weekNumber":1,"title":"Lesson One: Title","description":"Week description or null","days":[{"dayNumber":1,"title":"One: Day Title","content":"Instructional content","scripture":"Scripture references","questions":[{"questionText":"Full question text","questionType":"text","order":1}]}]}]}}
+
+FORMAT 2 - Need clarification:
+{"success":false,"clarifyingQuestions":[{"id":"q1","question":"What you need to know","context":"Why you need this","options":["Option 1","Option 2"]}],"rawAnalysis":"Your preliminary analysis"}
+
+Question types: "text" (open-ended), "reflection" (personal application), "multiple_choice" (specific options)
+
+Rules:
+- Extract ALL lessons/weeks, days, and questions
+- Preserve original question text exactly
+- Include scripture references in the scripture field
+- Separate instructional content from questions
+- Output ONLY the JSON object, nothing else`;
+
+/**
+ * Extract JSON from a string that might contain markdown or extra text
+ */
+function extractJSON(text: string): string {
+  // First, try to find JSON in markdown code blocks
+  const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (codeBlockMatch) {
+    const extracted = codeBlockMatch[1].trim();
+    // Verify it looks like JSON
+    if (extracted.startsWith("{") || extracted.startsWith("[")) {
+      return extracted;
+    }
+  }
+
+  // Try to find JSON object by looking for first { and last }
+  const firstBrace = text.indexOf("{");
+  const lastBrace = text.lastIndexOf("}");
+  
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    return text.slice(firstBrace, lastBrace + 1);
+  }
+
+  // Try to find JSON array by looking for first [ and last ]
+  const firstBracket = text.indexOf("[");
+  const lastBracket = text.lastIndexOf("]");
+  
+  if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
+    // Only use array if it comes before any object or there's no object
+    if (firstBrace === -1 || firstBracket < firstBrace) {
+      return text.slice(firstBracket, lastBracket + 1);
+    }
+  }
+
+  // Return the trimmed text as-is if no JSON structure found
+  return text.trim();
+}
+
+/**
+ * Safely parse JSON with detailed error logging
+ */
+function safeParseJSON<T>(text: string, context: string): { success: true; data: T } | { success: false; error: string } {
+  try {
+    const extracted = extractJSON(text);
+    const parsed = JSON.parse(extracted) as T;
+    return { success: true, data: parsed };
+  } catch (error) {
+    console.error(`[${context}] Failed to parse JSON:`);
+    console.error(`[${context}] Raw text (first 500 chars):`, text.slice(0, 500));
+    console.error(`[${context}] Extracted JSON attempt:`, extractJSON(text).slice(0, 500));
+    console.error(`[${context}] Parse error:`, error);
+    
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown parse error",
+    };
   }
 }
-
-2. If you need clarification:
-{
-  "success": false,
-  "clarifyingQuestions": [
-    {
-      "id": "q1",
-      "question": "What you need to know",
-      "context": "Why you need this information",
-      "options": ["Option 1", "Option 2"]
-    }
-  ],
-  "rawAnalysis": "Your preliminary analysis of the document structure"
-}
-
-Question types:
-- "text": Open-ended questions requiring written responses
-- "reflection": Personal reflection questions (often about application to life)
-- "multiple_choice": Questions with specific answer options
-
-IMPORTANT:
-- Extract ALL lessons/weeks found in the document
-- Extract ALL days within each lesson
-- Extract ALL questions within each day
-- Preserve the original question text exactly
-- Include any scripture references
-- Separate instructional content from questions`;
 
 /**
  * Parse a Bible study document using Claude
@@ -165,27 +181,23 @@ export async function parseDocumentWithClaude(
       };
     }
 
-    // Parse the JSON response
-    const jsonText = textContent.text.trim();
-    
-    // Try to extract JSON from the response (it might have markdown code blocks)
-    let jsonContent = jsonText;
-    const jsonMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (jsonMatch) {
-      jsonContent = jsonMatch[1].trim();
-    }
+    const rawResponse = textContent.text;
+    console.log("[parseDocumentWithClaude] Raw response length:", rawResponse.length);
+    console.log("[parseDocumentWithClaude] Raw response preview:", rawResponse.slice(0, 200));
 
-    const result = JSON.parse(jsonContent) as ParseResult;
-    return result;
-  } catch (error) {
-    console.error("Error parsing document with Claude:", error);
+    // Parse the JSON response using our robust parser
+    const parseResult = safeParseJSON<ParseResult>(rawResponse, "parseDocumentWithClaude");
     
-    if (error instanceof SyntaxError) {
+    if (!parseResult.success) {
       return {
         success: false,
-        error: "Failed to parse Claude's response as JSON. Please try again.",
+        error: `Failed to parse Claude's response as JSON: ${parseResult.error}. Please try again.`,
       };
     }
+
+    return parseResult.data;
+  } catch (error) {
+    console.error("[parseDocumentWithClaude] Error:", error);
     
     return {
       success: false,
@@ -194,12 +206,24 @@ export async function parseDocumentWithClaude(
   }
 }
 
+interface AnalysisResult {
+  summary: string;
+  confidence: number;
+  potentialIssues: string[];
+}
+
 /**
  * Analyze a document and provide a summary of its structure
  */
 export async function analyzeDocumentStructure(
   documentText: string
-): Promise<{ summary: string; confidence: number; potentialIssues: string[] }> {
+): Promise<AnalysisResult> {
+  const defaultError: AnalysisResult = {
+    summary: "Error analyzing document",
+    confidence: 0,
+    potentialIssues: [],
+  };
+
   try {
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
@@ -207,13 +231,12 @@ export async function analyzeDocumentStructure(
       messages: [
         {
           role: "user",
-          content: `Analyze this Bible study document and provide a brief summary of its structure. Output JSON only:
+          content: `Analyze this Bible study document and provide a brief summary of its structure.
 
-{
-  "summary": "A brief description of what you found",
-  "confidence": 0.0-1.0 (how confident you are in parsing this),
-  "potentialIssues": ["List of any issues or ambiguities found"]
-}
+IMPORTANT: Respond with ONLY a JSON object, no markdown, no code blocks, no extra text. Start with { and end with }.
+
+Required format:
+{"summary":"A brief description of what you found","confidence":0.85,"potentialIssues":["Issue 1","Issue 2"]}
 
 Document:
 ---
@@ -226,24 +249,28 @@ ${documentText.slice(0, 10000)}
     const textContent = response.content.find((block) => block.type === "text");
     if (!textContent || textContent.type !== "text") {
       return {
-        summary: "Could not analyze document",
-        confidence: 0,
+        ...defaultError,
         potentialIssues: ["No response from Claude"],
       };
     }
 
-    let jsonContent = textContent.text.trim();
-    const jsonMatch = jsonContent.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (jsonMatch) {
-      jsonContent = jsonMatch[1].trim();
+    const rawResponse = textContent.text;
+    console.log("[analyzeDocumentStructure] Raw response preview:", rawResponse.slice(0, 200));
+
+    const parseResult = safeParseJSON<AnalysisResult>(rawResponse, "analyzeDocumentStructure");
+    
+    if (!parseResult.success) {
+      return {
+        ...defaultError,
+        potentialIssues: [`Failed to parse analysis: ${parseResult.error}`],
+      };
     }
 
-    return JSON.parse(jsonContent);
+    return parseResult.data;
   } catch (error) {
-    console.error("Error analyzing document:", error);
+    console.error("[analyzeDocumentStructure] Error:", error);
     return {
-      summary: "Error analyzing document",
-      confidence: 0,
+      ...defaultError,
       potentialIssues: [error instanceof Error ? error.message : "Unknown error"],
     };
   }

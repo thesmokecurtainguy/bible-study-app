@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ParsedStudy, ClarifyingQuestion } from "@/lib/claude";
+import { ParsedStudy, ParsedWeek, ParsedDay, ParsedQuestion, ClarifyingQuestion } from "@/lib/claude";
 
 interface UploadState {
   status: "idle" | "uploading" | "analyzing" | "clarifying" | "preview" | "saving" | "success" | "error";
@@ -19,6 +19,145 @@ interface UploadState {
     confidence: number;
     potentialIssues: string[];
   };
+}
+
+// Inline editable text component
+function EditableText({
+  value,
+  onChange,
+  placeholder = "Click to edit",
+  className = "",
+  multiline = false,
+  as: Component = "span",
+}: {
+  value: string | null | undefined;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  className?: string;
+  multiline?: boolean;
+  as?: "span" | "p" | "h3";
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(value || "");
+  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  useEffect(() => {
+    setEditValue(value || "");
+  }, [value]);
+
+  const handleSave = () => {
+    onChange(editValue);
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !multiline) {
+      handleSave();
+    }
+    if (e.key === "Escape") {
+      setEditValue(value || "");
+      setIsEditing(false);
+    }
+  };
+
+  if (isEditing) {
+    if (multiline) {
+      return (
+        <textarea
+          ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={handleSave}
+          onKeyDown={handleKeyDown}
+          className={`w-full px-2 py-1 border border-amber-300 rounded focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white ${className}`}
+          rows={3}
+        />
+      );
+    }
+    return (
+      <input
+        ref={inputRef as React.RefObject<HTMLInputElement>}
+        type="text"
+        value={editValue}
+        onChange={(e) => setEditValue(e.target.value)}
+        onBlur={handleSave}
+        onKeyDown={handleKeyDown}
+        className={`px-2 py-1 border border-amber-300 rounded focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white ${className}`}
+      />
+    );
+  }
+
+  return (
+    <Component
+      onClick={() => setIsEditing(true)}
+      className={`cursor-pointer hover:bg-amber-50 rounded px-1 -mx-1 group inline-flex items-center gap-1 ${className}`}
+      title="Click to edit"
+    >
+      {value || <span className="text-stone-400 italic">{placeholder}</span>}
+      <svg
+        className="w-3 h-3 text-stone-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+      </svg>
+    </Component>
+  );
+}
+
+// Delete confirmation button
+function DeleteButton({
+  onDelete,
+  itemName,
+  size = "sm",
+}: {
+  onDelete: () => void;
+  itemName: string;
+  size?: "sm" | "md";
+}) {
+  const [confirming, setConfirming] = useState(false);
+
+  if (confirming) {
+    return (
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => {
+            onDelete();
+            setConfirming(false);
+          }}
+          className="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600"
+        >
+          Delete
+        </button>
+        <button
+          onClick={() => setConfirming(false)}
+          className="px-2 py-1 text-xs bg-stone-200 text-stone-600 rounded hover:bg-stone-300"
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => setConfirming(true)}
+      className={`text-stone-400 hover:text-red-500 transition-colors ${size === "sm" ? "p-1" : "p-2"}`}
+      title={`Delete ${itemName}`}
+    >
+      <svg className={size === "sm" ? "w-4 h-4" : "w-5 h-5"} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+      </svg>
+    </button>
+  );
 }
 
 export default function AdminUploadPage() {
@@ -34,6 +173,140 @@ export default function AdminUploadPage() {
   });
   const [expandedWeeks, setExpandedWeeks] = useState<Set<number>>(new Set());
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
+
+  // === EDITING FUNCTIONS ===
+
+  // Update study metadata
+  const updateStudyField = (field: keyof ParsedStudy, value: string | null) => {
+    if (!state.study) return;
+    setState((prev) => ({
+      ...prev,
+      study: { ...prev.study!, [field]: value },
+    }));
+  };
+
+  // Update week
+  const updateWeek = (weekIndex: number, field: keyof ParsedWeek, value: string | null) => {
+    if (!state.study) return;
+    const newWeeks = [...state.study.weeks];
+    newWeeks[weekIndex] = { ...newWeeks[weekIndex], [field]: value };
+    setState((prev) => ({
+      ...prev,
+      study: { ...prev.study!, weeks: newWeeks },
+    }));
+  };
+
+  // Delete week
+  const deleteWeek = (weekIndex: number) => {
+    if (!state.study) return;
+    const newWeeks = state.study.weeks.filter((_, i) => i !== weekIndex);
+    // Renumber remaining weeks
+    newWeeks.forEach((week, i) => {
+      week.weekNumber = i + 1;
+    });
+    setState((prev) => ({
+      ...prev,
+      study: { ...prev.study!, weeks: newWeeks },
+    }));
+    // Update expanded state
+    setExpandedWeeks((prev) => {
+      const next = new Set<number>();
+      prev.forEach((idx) => {
+        if (idx < weekIndex) next.add(idx);
+        else if (idx > weekIndex) next.add(idx - 1);
+      });
+      return next;
+    });
+  };
+
+  // Update day
+  const updateDay = (weekIndex: number, dayIndex: number, field: keyof ParsedDay, value: string | null) => {
+    if (!state.study) return;
+    const newWeeks = [...state.study.weeks];
+    const newDays = [...(newWeeks[weekIndex].days || [])];
+    newDays[dayIndex] = { ...newDays[dayIndex], [field]: value };
+    newWeeks[weekIndex] = { ...newWeeks[weekIndex], days: newDays };
+    setState((prev) => ({
+      ...prev,
+      study: { ...prev.study!, weeks: newWeeks },
+    }));
+  };
+
+  // Delete day
+  const deleteDay = (weekIndex: number, dayIndex: number) => {
+    if (!state.study) return;
+    const newWeeks = [...state.study.weeks];
+    const newDays = (newWeeks[weekIndex].days || []).filter((_, i) => i !== dayIndex);
+    // Renumber remaining days
+    newDays.forEach((day, i) => {
+      day.dayNumber = i + 1;
+    });
+    newWeeks[weekIndex] = { ...newWeeks[weekIndex], days: newDays };
+    setState((prev) => ({
+      ...prev,
+      study: { ...prev.study!, weeks: newWeeks },
+    }));
+  };
+
+  // Update question
+  const updateQuestion = (
+    weekIndex: number,
+    dayIndex: number,
+    questionIndex: number,
+    field: keyof ParsedQuestion,
+    value: string | number
+  ) => {
+    if (!state.study) return;
+    const newWeeks = [...state.study.weeks];
+    const newDays = [...(newWeeks[weekIndex].days || [])];
+    const newQuestions = [...(newDays[dayIndex].questions || [])];
+    newQuestions[questionIndex] = { ...newQuestions[questionIndex], [field]: value };
+    newDays[dayIndex] = { ...newDays[dayIndex], questions: newQuestions };
+    newWeeks[weekIndex] = { ...newWeeks[weekIndex], days: newDays };
+    setState((prev) => ({
+      ...prev,
+      study: { ...prev.study!, weeks: newWeeks },
+    }));
+  };
+
+  // Delete question
+  const deleteQuestion = (weekIndex: number, dayIndex: number, questionIndex: number) => {
+    if (!state.study) return;
+    const newWeeks = [...state.study.weeks];
+    const newDays = [...(newWeeks[weekIndex].days || [])];
+    const newQuestions = (newDays[dayIndex].questions || []).filter((_, i) => i !== questionIndex);
+    // Renumber remaining questions
+    newQuestions.forEach((q, i) => {
+      q.order = i + 1;
+    });
+    newDays[dayIndex] = { ...newDays[dayIndex], questions: newQuestions };
+    newWeeks[weekIndex] = { ...newWeeks[weekIndex], days: newDays };
+    setState((prev) => ({
+      ...prev,
+      study: { ...prev.study!, weeks: newWeeks },
+    }));
+  };
+
+  // Add question
+  const addQuestion = (weekIndex: number, dayIndex: number) => {
+    if (!state.study) return;
+    const newWeeks = [...state.study.weeks];
+    const newDays = [...(newWeeks[weekIndex].days || [])];
+    const existingQuestions = newDays[dayIndex].questions || [];
+    const newQuestion: ParsedQuestion = {
+      questionText: "New question - click to edit",
+      questionType: "text",
+      order: existingQuestions.length + 1,
+    };
+    newDays[dayIndex] = { ...newDays[dayIndex], questions: [...existingQuestions, newQuestion] };
+    newWeeks[weekIndex] = { ...newWeeks[weekIndex], days: newDays };
+    setState((prev) => ({
+      ...prev,
+      study: { ...prev.study!, weeks: newWeeks },
+    }));
+  };
+
+  // === END EDITING FUNCTIONS ===
 
   // Redirect if not admin
   if (status === "loading") {
@@ -284,7 +557,7 @@ export default function AdminUploadPage() {
               </div>
               <div>
                 <h3 className="text-xl font-bold text-green-800 mb-1">Study Saved Successfully!</h3>
-                <p className="text-green-600">"{state.study?.title}" has been added to the database.</p>
+                <p className="text-green-600">&quot;{state.study?.title}&quot; has been added to the database.</p>
               </div>
               <div className="flex gap-3 mt-2">
                 <Button
@@ -317,14 +590,23 @@ export default function AdminUploadPage() {
               <div className="flex-1">
                 <h3 className="font-semibold text-red-800 mb-1">Error</h3>
                 <p className="text-red-600">{state.error}</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-3"
-                  onClick={() => setState({ status: "idle" })}
-                >
-                  Try Again
-                </Button>
+                <div className="flex gap-2 mt-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setState({ status: "idle" })}
+                  >
+                    Try Again
+                  </Button>
+                  {state.study && (
+                    <Button
+                      size="sm"
+                      onClick={() => setState((prev) => ({ ...prev, status: "preview" }))}
+                    >
+                      Return to Preview
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           </CardContent>
@@ -476,15 +758,38 @@ export default function AdminUploadPage() {
       {/* Preview Section */}
       {(state.status === "preview" || state.status === "saving") && state.study && (
         <>
-          {/* Study Overview */}
+          {/* Edit Instructions Banner */}
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+            <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div className="text-sm text-amber-800">
+              <p className="font-medium">Review and edit before saving</p>
+              <p className="text-amber-600">Click on any text to edit it. Use the trash icons to delete items. All changes are made locally before saving to the database.</p>
+            </div>
+          </div>
+
+          {/* Study Overview - Editable */}
           <Card>
             <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-t-lg">
               <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="text-xl text-stone-800">{state.study.title}</CardTitle>
-                  {state.study.author && (
-                    <p className="text-sm text-stone-500 mt-1">By {state.study.author}</p>
-                  )}
+                <div className="flex-1">
+                  <EditableText
+                    value={state.study.title}
+                    onChange={(v) => updateStudyField("title", v)}
+                    placeholder="Study Title"
+                    className="text-xl font-bold text-stone-800"
+                    as="h3"
+                  />
+                  <div className="flex items-center gap-1 mt-1">
+                    <span className="text-sm text-stone-500">By</span>
+                    <EditableText
+                      value={state.study.author}
+                      onChange={(v) => updateStudyField("author", v)}
+                      placeholder="Author name"
+                      className="text-sm text-stone-500"
+                    />
+                  </div>
                 </div>
                 {getStats() && (
                   <div className="flex gap-4 text-sm">
@@ -503,13 +808,18 @@ export default function AdminUploadPage() {
                   </div>
                 )}
               </div>
-              {state.study.description && (
-                <p className="text-stone-600 mt-2">{state.study.description}</p>
-              )}
+              <EditableText
+                value={state.study.description}
+                onChange={(v) => updateStudyField("description", v)}
+                placeholder="Add a study description..."
+                className="text-stone-600 mt-2"
+                multiline
+                as="p"
+              />
             </CardHeader>
           </Card>
 
-          {/* Content Preview */}
+          {/* Content Preview - Editable */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -519,98 +829,155 @@ export default function AdminUploadPage() {
                 Content Preview
               </CardTitle>
               <CardDescription>
-                Review the parsed structure before saving
+                Review and edit the parsed structure before saving
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {state.study.weeks.map((week, weekIndex) => (
                 <div key={weekIndex} className="border border-stone-200 rounded-xl overflow-hidden">
                   {/* Week Header */}
-                  <button
-                    onClick={() => toggleWeek(weekIndex)}
-                    className="w-full flex items-center justify-between p-4 bg-stone-50 hover:bg-stone-100 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-between p-4 bg-stone-50 hover:bg-stone-100 transition-colors">
+                    <button
+                      onClick={() => toggleWeek(weekIndex)}
+                      className="flex items-center gap-3 flex-1 text-left"
+                    >
                       <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-bold text-sm shadow">
                         {week.weekNumber}
                       </div>
-                      <div className="text-left">
-                        <p className="font-semibold text-stone-800">{week.title}</p>
+                      <div>
+                        <EditableText
+                          value={week.title}
+                          onChange={(v) => updateWeek(weekIndex, "title", v)}
+                          placeholder="Week title"
+                          className="font-semibold text-stone-800"
+                        />
                         <p className="text-sm text-stone-500">{week.days?.length || 0} days</p>
                       </div>
+                    </button>
+                    <div className="flex items-center gap-2">
+                      <DeleteButton onDelete={() => deleteWeek(weekIndex)} itemName="week" />
+                      <button onClick={() => toggleWeek(weekIndex)}>
+                        <svg
+                          className={`w-5 h-5 text-stone-400 transition-transform ${expandedWeeks.has(weekIndex) ? "rotate-180" : ""}`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
                     </div>
-                    <svg
-                      className={`w-5 h-5 text-stone-400 transition-transform ${expandedWeeks.has(weekIndex) ? "rotate-180" : ""}`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
+                  </div>
 
                   {/* Week Content */}
                   {expandedWeeks.has(weekIndex) && (
                     <div className="p-4 space-y-3">
-                      {week.description && (
-                        <p className="text-stone-600 text-sm italic">{week.description}</p>
-                      )}
+                      <EditableText
+                        value={week.description}
+                        onChange={(v) => updateWeek(weekIndex, "description", v)}
+                        placeholder="Add week description..."
+                        className="text-stone-600 text-sm italic"
+                        multiline
+                        as="p"
+                      />
                       {week.days?.map((day, dayIndex) => {
                         const dayKey = `${weekIndex}-${dayIndex}`;
                         return (
                           <div key={dayIndex} className="border border-stone-100 rounded-lg overflow-hidden">
                             {/* Day Header */}
-                            <button
-                              onClick={() => toggleDay(dayKey)}
-                              className="w-full flex items-center justify-between p-3 bg-white hover:bg-stone-50 transition-colors"
-                            >
-                              <div className="flex items-center gap-2">
+                            <div className="flex items-center justify-between p-3 bg-white hover:bg-stone-50 transition-colors">
+                              <button
+                                onClick={() => toggleDay(dayKey)}
+                                className="flex items-center gap-2 flex-1 text-left"
+                              >
                                 <div className="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-semibold text-xs">
                                   {day.dayNumber}
                                 </div>
-                                <span className="font-medium text-stone-700">{day.title}</span>
-                              </div>
+                                <EditableText
+                                  value={day.title}
+                                  onChange={(v) => updateDay(weekIndex, dayIndex, "title", v)}
+                                  placeholder="Day title"
+                                  className="font-medium text-stone-700"
+                                />
+                              </button>
                               <div className="flex items-center gap-2">
                                 <span className="text-xs text-stone-400">{day.questions?.length || 0} questions</span>
-                                <svg
-                                  className={`w-4 h-4 text-stone-400 transition-transform ${expandedDays.has(dayKey) ? "rotate-180" : ""}`}
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
+                                <DeleteButton onDelete={() => deleteDay(weekIndex, dayIndex)} itemName="day" size="sm" />
+                                <button onClick={() => toggleDay(dayKey)}>
+                                  <svg
+                                    className={`w-4 h-4 text-stone-400 transition-transform ${expandedDays.has(dayKey) ? "rotate-180" : ""}`}
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                </button>
                               </div>
-                            </button>
+                            </div>
 
                             {/* Day Content */}
                             {expandedDays.has(dayKey) && (
                               <div className="p-3 bg-stone-50 border-t border-stone-100 space-y-3">
-                                {day.scripture && (
-                                  <div className="flex items-start gap-2">
-                                    <svg className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                                    </svg>
-                                    <span className="text-sm text-amber-700 font-medium">{day.scripture}</span>
-                                  </div>
-                                )}
-                                {day.content && (
-                                  <p className="text-sm text-stone-600 whitespace-pre-wrap">{day.content}</p>
-                                )}
+                                <div className="flex items-start gap-2">
+                                  <svg className="w-4 h-4 text-amber-500 mt-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                                  </svg>
+                                  <EditableText
+                                    value={day.scripture}
+                                    onChange={(v) => updateDay(weekIndex, dayIndex, "scripture", v)}
+                                    placeholder="Add scripture reference..."
+                                    className="text-sm text-amber-700 font-medium flex-1"
+                                  />
+                                </div>
+                                <EditableText
+                                  value={day.content}
+                                  onChange={(v) => updateDay(weekIndex, dayIndex, "content", v)}
+                                  placeholder="Add day content/instructions..."
+                                  className="text-sm text-stone-600"
+                                  multiline
+                                  as="p"
+                                />
                                 {day.questions && day.questions.length > 0 && (
                                   <div className="space-y-2 mt-2">
                                     <p className="text-xs font-semibold text-stone-500 uppercase tracking-wider">Questions:</p>
                                     {day.questions.map((q, qIndex) => (
-                                      <div key={qIndex} className="flex gap-2 text-sm bg-white p-2 rounded">
-                                        <span className="text-amber-600 font-medium">{q.order}.</span>
-                                        <span className="text-stone-700">{q.questionText}</span>
-                                        <span className="text-xs bg-stone-100 text-stone-500 px-1.5 py-0.5 rounded self-start">
-                                          {q.questionType}
-                                        </span>
+                                      <div key={qIndex} className="flex items-start gap-2 text-sm bg-white p-2 rounded group">
+                                        <span className="text-amber-600 font-medium flex-shrink-0">{q.order}.</span>
+                                        <EditableText
+                                          value={q.questionText}
+                                          onChange={(v) => updateQuestion(weekIndex, dayIndex, qIndex, "questionText", v)}
+                                          placeholder="Question text"
+                                          className="text-stone-700 flex-1"
+                                          multiline
+                                        />
+                                        <select
+                                          value={q.questionType}
+                                          onChange={(e) => updateQuestion(weekIndex, dayIndex, qIndex, "questionType", e.target.value)}
+                                          className="text-xs bg-stone-100 text-stone-500 px-1.5 py-0.5 rounded border-0 focus:ring-1 focus:ring-amber-500"
+                                        >
+                                          <option value="text">text</option>
+                                          <option value="reflection">reflection</option>
+                                          <option value="multiple_choice">multiple_choice</option>
+                                        </select>
+                                        <DeleteButton
+                                          onDelete={() => deleteQuestion(weekIndex, dayIndex, qIndex)}
+                                          itemName="question"
+                                          size="sm"
+                                        />
                                       </div>
                                     ))}
                                   </div>
                                 )}
+                                <button
+                                  onClick={() => addQuestion(weekIndex, dayIndex)}
+                                  className="flex items-center gap-1 text-sm text-amber-600 hover:text-amber-700 hover:bg-amber-50 px-2 py-1 rounded transition-colors"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                  </svg>
+                                  Add Question
+                                </button>
                               </div>
                             )}
                           </div>
@@ -702,4 +1069,3 @@ export default function AdminUploadPage() {
     </div>
   );
 }
-

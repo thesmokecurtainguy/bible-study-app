@@ -86,6 +86,18 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.role = (user as any).role;
       }
+      
+      // If role is missing from token (e.g., old session), fetch from database
+      if (token.id && !token.role) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          select: { role: true },
+        });
+        if (dbUser) {
+          token.role = dbUser.role;
+        }
+      }
+      
       return token;
     },
     async session({ session, token }) {

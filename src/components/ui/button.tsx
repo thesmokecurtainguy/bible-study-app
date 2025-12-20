@@ -28,16 +28,12 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
           "disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed",
           "cursor-pointer",
-          {
-            "bg-blue-600 text-white hover:bg-blue-700 focus-visible:ring-blue-500":
-              variant === "default",
-            "border border-gray-300 bg-transparent hover:bg-gray-100 focus-visible:ring-gray-500":
-              variant === "outline",
-            "hover:bg-gray-100 focus-visible:ring-gray-500": variant === "ghost",
-            "h-10 px-4 py-2": size === "default",
-            "h-9 px-3 text-sm": size === "sm",
-            "h-11 px-8": size === "lg",
-          },
+          variant === "default" && "bg-blue-600 text-white hover:bg-blue-700 focus-visible:ring-blue-500",
+          variant === "outline" && "border border-gray-300 bg-transparent hover:bg-gray-100 focus-visible:ring-gray-500",
+          variant === "ghost" && "hover:bg-gray-100 focus-visible:ring-gray-500",
+          size === "default" && "h-10 px-4 py-2",
+          size === "sm" && "h-9 px-3 text-sm",
+          size === "lg" && "h-11 px-8",
           className
         )}
         ref={ref}

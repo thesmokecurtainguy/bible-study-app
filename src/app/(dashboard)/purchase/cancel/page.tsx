@@ -44,7 +44,7 @@ export default async function PurchaseCancelPage() {
             </p>
           </div>
           <div className="flex flex-col gap-2">
-            <Link href="/dashboard/studies">
+            <Link href="/studies">
               <Button className="w-full">Browse Studies</Button>
             </Link>
             <Link href="/dashboard">

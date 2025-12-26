@@ -67,7 +67,7 @@ export default function Navbar({ user }: NavbarProps) {
                 Dashboard
               </Link>
               <Link
-                href="/dashboard/studies"
+                href="/studies"
                 className="rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900"
               >
                 My Studies
@@ -174,7 +174,7 @@ export default function Navbar({ user }: NavbarProps) {
             Dashboard
           </Link>
           <Link
-            href="/dashboard/studies"
+            href="/studies"
             className="block rounded-md px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900"
           >
             My Studies

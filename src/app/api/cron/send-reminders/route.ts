@@ -69,18 +69,10 @@ export async function GET(request: NextRequest) {
           continue;
         }
 
-        const [reminderHour] = profile.reminderTime.split(":").map(Number);
-        const userTimezone = profile.reminderTimezone || "America/New_York";
-        
-        // Create a date in the user's timezone to check current hour
-        const userNow = new Date(now.toLocaleString("en-US", { timeZone: userTimezone }));
-        const userHour = userNow.getHours();
-
-        // For daily cron: Send reminders to users whose reminder time is within 2 hours
-        // This ensures users get reminders close to their preferred time
-        // Note: With daily cron, exact time matching isn't possible on Hobby plan
+        // For daily cron: Send reminders to all eligible users
+        // Note: With daily cron (Vercel Hobby plan), exact time matching isn't possible
         // Users will receive reminders once per day when cron runs (9 AM UTC)
-        // To get exact time matching, upgrade to Vercel Pro plan for hourly cron jobs
+        // To get exact time matching with hourly reminders, upgrade to Vercel Pro plan
 
         // Get user's most recent active study (purchased, not completed)
         const purchases = await prisma.purchase.findMany({

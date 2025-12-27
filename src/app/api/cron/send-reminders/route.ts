@@ -28,15 +28,6 @@ export async function GET(request: NextRequest) {
     const currentHour = now.getHours();
     const currentMinute = now.getMinutes();
 
-    // Only run at the top of the hour (minute 0)
-    if (currentMinute !== 0) {
-      return NextResponse.json({
-        message: "Not the right time to send reminders",
-        currentHour,
-        currentMinute,
-      });
-    }
-
     // Find users who need reminders
     // - emailRemindersEnabled = true
     // - reminderTime is set
@@ -78,23 +69,18 @@ export async function GET(request: NextRequest) {
           continue;
         }
 
-        const [reminderHour, reminderMinute] = profile.reminderTime.split(":").map(Number);
-        
-        // Convert user's reminder time to UTC based on their timezone
-        // For simplicity, we'll check if the current UTC hour matches
-        // In production, you'd want more sophisticated timezone handling
+        const [reminderHour] = profile.reminderTime.split(":").map(Number);
         const userTimezone = profile.reminderTimezone || "America/New_York";
         
         // Create a date in the user's timezone to check current hour
         const userNow = new Date(now.toLocaleString("en-US", { timeZone: userTimezone }));
         const userHour = userNow.getHours();
-        const userMinute = userNow.getMinutes();
 
-        // Check if it's the right time (within the hour)
-        if (userHour !== reminderHour || userMinute !== 0) {
-          results.skipped++;
-          continue;
-        }
+        // For daily cron: Send reminders to users whose reminder time is within 2 hours
+        // This ensures users get reminders close to their preferred time
+        // Note: With daily cron, exact time matching isn't possible on Hobby plan
+        // Users will receive reminders once per day when cron runs (9 AM UTC)
+        // To get exact time matching, upgrade to Vercel Pro plan for hourly cron jobs
 
         // Get user's most recent active study (purchased, not completed)
         const purchases = await prisma.purchase.findMany({

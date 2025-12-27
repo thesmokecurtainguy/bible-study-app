@@ -15,7 +15,7 @@ export default async function PrayersPage() {
   const userId = session.user.id;
 
   // Fetch user's prayers (private + shared)
-  const prayers = await prisma.prayerRequest.findMany({
+  const prayersData = await prisma.prayerRequest.findMany({
     where: {
       OR: [
         // User's private prayers
@@ -62,6 +62,13 @@ export default async function PrayersPage() {
       createdAt: "desc",
     },
   });
+
+  // Serialize dates to strings for client component
+  const prayers = prayersData.map((prayer) => ({
+    ...prayer,
+    createdAt: prayer.createdAt.toISOString(),
+    answeredAt: prayer.answeredAt ? prayer.answeredAt.toISOString() : null,
+  }));
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">

@@ -80,13 +80,14 @@ export function ScriptureContent({
               dangerouslySetInnerHTML={{ __html: part.content }}
             />
           );
-        } else {
+        } else if (part.type === "scripture") {
           return (
             <ScriptureLink key={index} reference={part.ref}>
               {part.text}
             </ScriptureLink>
           );
         }
+        return null;
       })}
     </div>
   );

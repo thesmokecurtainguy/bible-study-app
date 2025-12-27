@@ -359,3 +359,14 @@ model AuditLog {
   @@index([createdAt])
   @@map("audit_logs")
 }
+
+model BiblePassageCache {
+  id          String   @id @default(cuid())
+  reference   String   // normalized: "john 4:1-15"
+  translation String   // "ESV", "NKJV", etc.
+  passage     String   @db.Text
+  createdAt   DateTime @default(now())
+  
+  @@unique([reference, translation])
+  @@map("bible_passage_cache")
+}

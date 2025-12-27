@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import RichTextEditor from "@/components/ui/rich-text-editor";
 import RichTextDisplay from "@/components/ui/rich-text-display";
+import { ScriptureContent } from "@/components/bible/scripture-content";
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -138,7 +139,7 @@ export function QuestionAnswer({ question, existingAnswer, questionIndex }: Ques
               )}
             </div>
             <CardTitle className="text-base font-medium text-gray-900 leading-relaxed">
-              {question.questionText}
+              <ScriptureContent htmlContent={question.questionText} />
             </CardTitle>
           </div>
         </div>

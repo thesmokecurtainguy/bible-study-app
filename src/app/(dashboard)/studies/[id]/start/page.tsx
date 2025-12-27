@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import QuestionAnswer from "@/components/study/question-answer";
+import { FloatingPrayerButton } from "@/components/study/floating-prayer-button";
 
 interface StudyWorkspacePageProps {
   params: Promise<{
@@ -157,8 +158,28 @@ export default async function StudyWorkspacePage({ params, searchParams }: Study
   const previousDay = findPreviousDay();
   const nextDay = findNextDay();
 
+  // Fetch user's groups for this study (if any)
+  const userGroups = await prisma.groupMembership.findMany({
+    where: {
+      userId: session.user.id,
+      leftAt: null,
+    },
+    include: {
+      group: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+    },
+  });
+
+  // For now, use the first group if user is in any groups
+  // In the future, you might want to associate groups with studies
+  const groupId = userGroups.length > 0 ? userGroups[0].group.id : undefined;
+
   return (
-    <div className="flex flex-col lg:flex-row gap-6 -mx-4 sm:-mx-6 lg:-mx-8 -my-8 min-h-[calc(100vh-4rem)]">
+    <div className="flex flex-col lg:flex-row gap-6 -mx-4 sm:-mx-6 lg:-mx-8 -my-8 min-h-[calc(100vh-4rem)] relative">
       {/* Left Sidebar - Week/Day Navigation */}
       <aside className="lg:w-72 xl:w-80 bg-white border-r border-gray-200 lg:h-[calc(100vh-4rem)] lg:sticky lg:top-16 shrink-0">
         <div className="p-4 border-b border-gray-200">
@@ -342,6 +363,13 @@ export default async function StudyWorkspacePage({ params, searchParams }: Study
           Scroll up to access the week and day navigation
         </p>
       </main>
+
+      {/* Floating Prayer Button */}
+      <FloatingPrayerButton
+        studyId={id}
+        groupId={groupId}
+        userId={session.user.id}
+      />
     </div>
   );
 }

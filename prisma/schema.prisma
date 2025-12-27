@@ -114,6 +114,7 @@ model Study {
   // Relations
   weeks  Week[]
   purchases Purchase[]
+  prayerRequests PrayerRequest[]
 
   @@index([isPublished])
   @@index([isPremium])
@@ -194,20 +195,25 @@ model Answer {
 }
 
 model PrayerRequest {
-  id          String   @id @default(cuid())
-  userId      String
-  title       String
-  content     String   @db.Text
-  isPublic    Boolean  @default(false)
-  isAnswered  Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String    @id @default(cuid())
+  userId       String
+  groupId      String?   // null = private, set = shared with this group
+  studyId      String?   // which study this was added during (for context)
+  title        String
+  content      String    @db.Text
+  isAnswered   Boolean   @default(false)
+  answeredAt   DateTime?
+  answeredNote String?   @db.Text  // how God answered
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group Group? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  study Study? @relation(fields: [studyId], references: [id], onDelete: SetNull)
 
   @@index([userId])
-  @@index([isPublic])
+  @@index([groupId])
   @@index([isAnswered])
   @@map("prayer_requests")
 }
@@ -247,6 +253,7 @@ model Group {
   memberships GroupMembership[]
   moderators  GroupModerator[]
   posts       DiscussionPost[]
+  prayerRequests PrayerRequest[]
 
   @@index([isPublic])
   @@map("groups")

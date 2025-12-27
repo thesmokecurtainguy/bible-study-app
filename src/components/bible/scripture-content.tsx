@@ -27,7 +27,7 @@ export function ScriptureContent({
   htmlContent,
   className,
 }: ScriptureContentProps) {
-  const parsedContent = useMemo(() => {
+  const parsedContent = useMemo((): ContentPart[] => {
     if (!htmlContent) return [];
 
     // First, parse and wrap scripture references
@@ -66,7 +66,7 @@ export function ScriptureContent({
 
     // If no scripture references found, return original HTML as single part
     if (parts.length === 0) {
-      return [{ type: "html", content: htmlContent }];
+      return [{ type: "html" as const, content: htmlContent }];
     }
 
     return parts;

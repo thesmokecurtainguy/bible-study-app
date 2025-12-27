@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import RichTextDisplay from "@/components/ui/rich-text-display";
 
 interface Day {
   id: string;
@@ -112,9 +113,9 @@ export default function StudyWeeksAccordion({ weeks, studyId, isOwned }: StudyWe
                     Week {week.weekNumber}: {week.title}
                   </h4>
                   {week.description && (
-                    <p className="text-sm text-gray-500 truncate mt-0.5">
-                      {week.description}
-                    </p>
+                    <div className="text-sm text-gray-500 mt-0.5 line-clamp-2">
+                      <RichTextDisplay content={week.description} className="prose-sm prose-p:my-0 prose-p:text-gray-500" />
+                    </div>
                   )}
                 </div>
               </div>

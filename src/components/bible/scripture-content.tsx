@@ -14,6 +14,13 @@ type ContentPart =
   | { type: "scripture"; ref: string; text: string };
 
 /**
+ * Type guard to check if a ContentPart is a scripture reference
+ */
+function isScripturePart(part: ContentPart): part is { type: "scripture"; ref: string; text: string } {
+  return part.type === "scripture";
+}
+
+/**
  * Component that parses HTML content and makes scripture references clickable
  */
 export function ScriptureContent({
@@ -80,7 +87,8 @@ export function ScriptureContent({
               dangerouslySetInnerHTML={{ __html: part.content }}
             />
           );
-        } else if (part.type === "scripture") {
+        }
+        if (isScripturePart(part)) {
           return (
             <ScriptureLink key={index} reference={part.ref}>
               {part.text}

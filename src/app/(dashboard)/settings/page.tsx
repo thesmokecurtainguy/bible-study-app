@@ -15,6 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { ReminderSettings } from "@/components/settings/reminder-settings";
 
 const changePasswordSchema = z
   .object({
@@ -195,6 +196,18 @@ export default function SettingsPage() {
               </Button>
             </div>
           </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Study Reminders</CardTitle>
+          <CardDescription>
+            Get daily email reminders to help you stay consistent with your Bible study.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ReminderSettings />
         </CardContent>
       </Card>
     </div>

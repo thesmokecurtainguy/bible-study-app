@@ -3,6 +3,8 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { DashboardPrayerCard } from "@/components/prayers/dashboard-prayer-card";
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
@@ -34,6 +36,89 @@ export default async function DashboardPage() {
     },
     take: 6, // Limit to 6 most recent purchases for dashboard
   });
+
+  // Get user's recent active prayer requests
+  const recentPrayersData = await prisma.prayerRequest.findMany({
+    where: {
+      OR: [
+        // User's private prayers
+        {
+          userId: session.user.id,
+          groupId: null,
+          isAnswered: false,
+        },
+        // Group prayers where user is a member
+        {
+          groupId: { not: null },
+          isAnswered: false,
+          group: {
+            memberships: {
+              some: {
+                userId: session.user.id,
+                leftAt: null, // Active membership
+              },
+            },
+          },
+        },
+      ],
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      group: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      study: {
+        select: {
+          id: true,
+          title: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+    take: 5, // Limit to 5 most recent active prayers
+  });
+
+  // Get total count of active prayers
+  const activePrayerCount = await prisma.prayerRequest.count({
+    where: {
+      OR: [
+        {
+          userId: session.user.id,
+          groupId: null,
+          isAnswered: false,
+        },
+        {
+          groupId: { not: null },
+          isAnswered: false,
+          group: {
+            memberships: {
+              some: {
+                userId: session.user.id,
+                leftAt: null,
+              },
+            },
+          },
+        },
+      ],
+    },
+  });
+
+  // Serialize dates to strings for client component
+  const recentPrayers = recentPrayersData.map((prayer) => ({
+    ...prayer,
+    createdAt: prayer.createdAt.toISOString(),
+    answeredAt: prayer.answeredAt ? prayer.answeredAt.toISOString() : null,
+  }));
 
   return (
     <div className="space-y-8">
@@ -129,43 +214,57 @@ export default async function DashboardPage() {
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold text-gray-900">
             Prayer Requests
+            {activePrayerCount > 0 && (
+              <span className="ml-2 text-base font-normal text-gray-500">
+                ({activePrayerCount})
+              </span>
+            )}
           </h2>
-          <Link
-            href="/dashboard/prayer-requests"
-            className="text-sm font-medium text-blue-600 hover:text-blue-500"
-          >
-            View all
-          </Link>
-        </div>
-        <div className="mt-6 text-center">
-          <svg
-            className="mx-auto h-12 w-12 text-gray-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-          <h3 className="mt-4 text-sm font-medium text-gray-900">
-            No prayer requests yet
-          </h3>
-          <p className="mt-2 text-sm text-gray-500">
-            Share your prayer requests with the community or keep them private.
-          </p>
-          <div className="mt-6">
+          <div className="flex items-center gap-4">
             <Link
-              href="/dashboard/prayer-requests/new"
-              className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              href="/prayers"
+              className="text-sm font-medium text-blue-600 hover:text-blue-500"
             >
-              Create Prayer Request
+              View all
             </Link>
           </div>
         </div>
+        {recentPrayers.length === 0 ? (
+          <div className="mt-6 text-center">
+            <div className="text-4xl mb-4">🙏</div>
+            <h3 className="mt-4 text-sm font-medium text-gray-900">
+              No prayer requests yet
+            </h3>
+            <p className="mt-2 text-sm text-gray-500">
+              Start capturing your prayers as you study. God is listening!
+            </p>
+            <div className="mt-6">
+              <Link href="/prayers">
+                <Button>Add Prayer</Button>
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-6 space-y-3">
+            {recentPrayers.map((prayer) => (
+              <DashboardPrayerCard
+                key={prayer.id}
+                prayer={prayer}
+                currentUserId={session.user.id}
+              />
+            ))}
+            {activePrayerCount > 5 && (
+              <div className="pt-2 border-t border-gray-200">
+                <Link
+                  href="/prayers"
+                  className="block text-center text-sm text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  View all {activePrayerCount} prayer requests →
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

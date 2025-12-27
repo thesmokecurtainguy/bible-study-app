@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import QuestionAnswer from "@/components/study/question-answer";
 import { FloatingPrayerButton } from "@/components/study/floating-prayer-button";
+import { ScriptureContent } from "@/components/bible/scripture-content";
 
 interface StudyWorkspacePageProps {
   params: Promise<{
@@ -264,9 +265,9 @@ export default async function StudyWorkspacePage({ params, searchParams }: Study
             {currentDay.title}
           </h1>
           {currentDay.scripture && (
-            <p className="text-lg text-blue-700 italic font-serif">
-              {currentDay.scripture}
-            </p>
+            <div className="text-lg text-blue-700 italic font-serif">
+              <ScriptureContent htmlContent={currentDay.scripture} />
+            </div>
           )}
         </div>
 
@@ -275,9 +276,10 @@ export default async function StudyWorkspacePage({ params, searchParams }: Study
           <Card className="mb-8 bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200">
             <CardContent className="p-6">
               <div className="prose prose-amber max-w-none">
-                <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
-                  {currentDay.content}
-                </p>
+                <ScriptureContent
+                  htmlContent={currentDay.content}
+                  className="text-gray-700 whitespace-pre-wrap leading-relaxed"
+                />
               </div>
             </CardContent>
           </Card>

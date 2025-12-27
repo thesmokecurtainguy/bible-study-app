@@ -11,6 +11,10 @@ const credentialsSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
+if (!process.env.NEXTAUTH_SECRET) {
+  throw new Error("NEXTAUTH_SECRET environment variable is not set");
+}
+
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as any,
   session: {

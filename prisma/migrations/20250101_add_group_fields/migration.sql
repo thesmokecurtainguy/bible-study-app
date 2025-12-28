@@ -35,8 +35,11 @@ UPDATE "groups" SET "isActive" = true WHERE "isActive" IS NULL;
 UPDATE "groups" SET "inviteEnabled" = true WHERE "inviteEnabled" IS NULL;
 
 -- Step 4: Add foreign key constraints
-ALTER TABLE "groups" ADD CONSTRAINT "groups_studyId_fkey" FOREIGN KEY ("studyId") REFERENCES "studies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "groups" ADD CONSTRAINT "groups_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+-- Note: If there are existing groups, you may need to delete them first or populate studyId/ownerId
+-- Check for existing groups: SELECT COUNT(*) FROM "groups";
+-- If count > 0, either delete them or update them with valid studyId/ownerId before running this migration
+ALTER TABLE "groups" ADD CONSTRAINT IF NOT EXISTS "groups_studyId_fkey" FOREIGN KEY ("studyId") REFERENCES "studies"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "groups" ADD CONSTRAINT IF NOT EXISTS "groups_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- Step 5: Make inviteCode NOT NULL and UNIQUE
 ALTER TABLE "groups" ALTER COLUMN "inviteCode" SET NOT NULL;

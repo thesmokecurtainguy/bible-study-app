@@ -30,6 +30,7 @@ model User {
   purchases         Purchase[]
   groupMemberships  GroupMembership[]
   groupModerators   GroupModerator[]
+  ownedGroups       Group[]            @relation("GroupOwner")
   discussionPosts   DiscussionPost[]
   discussionReplies DiscussionReply[]
   auditLogs         AuditLog[]
@@ -121,6 +122,7 @@ model Study {
   weeks  Week[]
   purchases Purchase[]
   prayerRequests PrayerRequest[]
+  groups Group[]
 
   @@index([isPublished])
   @@index([isPremium])
@@ -246,22 +248,33 @@ model Purchase {
 }
 
 model Group {
-  id          String   @id @default(cuid())
-  name        String
-  description String?  @db.Text
-  coverImage  String?
-  isPublic    Boolean  @default(true)
-  maxMembers  Int?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(cuid())
+  studyId       String
+  name          String
+  description   String?  @db.Text
+  coverImage    String?
+  ownerId       String
+  isActive      Boolean  @default(true)
+  isPublic      Boolean  @default(true)
+  maxMembers    Int?
+  inviteCode    String   @unique
+  inviteEnabled Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   // Relations
-  memberships GroupMembership[]
-  moderators  GroupModerator[]
-  posts       DiscussionPost[]
+  study          Study              @relation(fields: [studyId], references: [id], onDelete: Cascade)
+  owner          User               @relation("GroupOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  memberships    GroupMembership[]
+  moderators     GroupModerator[]
+  posts          DiscussionPost[]
   prayerRequests PrayerRequest[]
 
   @@index([isPublic])
+  @@index([studyId])
+  @@index([ownerId])
+  @@index([inviteCode])
+  @@index([isActive])
   @@map("groups")
 }
 

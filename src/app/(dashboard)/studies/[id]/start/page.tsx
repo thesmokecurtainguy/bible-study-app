@@ -159,24 +159,37 @@ export default async function StudyWorkspacePage({ params, searchParams }: Study
   const previousDay = findPreviousDay();
   const nextDay = findNextDay();
 
-  // Fetch user's groups for this study (if any)
+  // Fetch user's groups for this study
   const userGroups = await prisma.groupMembership.findMany({
     where: {
       userId: session.user.id,
       leftAt: null,
+      group: {
+        studyId: id,
+        isActive: true,
+      },
     },
     include: {
       group: {
         select: {
           id: true,
           name: true,
+          description: true,
+          _count: {
+            select: {
+              memberships: {
+                where: {
+                  leftAt: null,
+                },
+              },
+            },
+          },
         },
       },
     },
   });
 
-  // For now, use the first group if user is in any groups
-  // In the future, you might want to associate groups with studies
+  // Use the first group if user is in any groups (for prayer requests)
   const groupId = userGroups.length > 0 ? userGroups[0].group.id : undefined;
 
   return (
@@ -244,6 +257,50 @@ export default async function StudyWorkspacePage({ params, searchParams }: Study
             ))}
           </nav>
         </ScrollArea>
+
+        {/* Study Groups Section */}
+        <div className="p-4 border-t border-gray-200">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-gray-900">Study Groups</h3>
+            <Link href={`/groups/create?studyId=${id}`}>
+              <Button variant="ghost" size="sm" className="h-7 text-xs">
+                Create
+              </Button>
+            </Link>
+          </div>
+          {userGroups.length === 0 ? (
+            <div className="text-sm text-gray-500 mb-2">
+              <p className="mb-2">No groups yet for this study.</p>
+              <Link href={`/groups/create?studyId=${id}`}>
+                <Button variant="outline" size="sm" className="w-full text-xs">
+                  Create Group
+                </Button>
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {userGroups.map((membership) => (
+                <Link
+                  key={membership.group.id}
+                  href={`/groups/${membership.group.id}`}
+                  className="block p-2 rounded-lg hover:bg-gray-50 border border-gray-200 transition-colors"
+                >
+                  <p className="text-sm font-medium text-gray-900 line-clamp-1">
+                    {membership.group.name}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {membership.group._count.memberships} {membership.group._count.memberships === 1 ? "member" : "members"}
+                  </p>
+                </Link>
+              ))}
+              <Link href={`/groups/create?studyId=${id}`}>
+                <Button variant="outline" size="sm" className="w-full text-xs mt-2">
+                  + Create New Group
+                </Button>
+              </Link>
+            </div>
+          )}
+        </div>
       </aside>
 
       {/* Main Content Area */}

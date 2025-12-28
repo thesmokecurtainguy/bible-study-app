@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ShareInviteButton } from "@/components/groups/share-invite-button";
+import { DiscussionBoard } from "@/components/groups/discussion-board";
 
 interface GroupDetailPageProps {
   params: Promise<{
@@ -68,26 +69,6 @@ export default async function GroupDetailPage({ params }: GroupDetailPageProps) 
           },
         },
       },
-      posts: {
-        take: 10,
-        orderBy: {
-          createdAt: "desc",
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
-          _count: {
-            select: {
-              replies: true,
-            },
-          },
-        },
-      },
       _count: {
         select: {
           memberships: {
@@ -145,42 +126,12 @@ export default async function GroupDetailPage({ params }: GroupDetailPageProps) 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Main Content - Discussion Board */}
         <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Discussion Board</CardTitle>
-              <CardDescription>
-                Start conversations and share insights with your group.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {group.posts.length === 0 ? (
-                <div className="py-12 text-center">
-                  <p className="text-gray-500 mb-4">No discussions yet.</p>
-                  <Button disabled>Create Post (Coming Soon)</Button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {group.posts.map((post) => (
-                    <div
-                      key={post.id}
-                      className="border-b border-gray-200 pb-4 last:border-0 last:pb-0"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h3 className="font-semibold text-gray-900">{post.title}</h3>
-                          <p className="mt-1 text-sm text-gray-600">
-                            by {post.user.name || post.user.email} · {new Date(post.createdAt).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <Badge variant="outline">{post._count.replies} replies</Badge>
-                      </div>
-                      <p className="mt-2 text-gray-700 line-clamp-3">{post.content}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <DiscussionBoard
+            groupId={id}
+            currentUserId={session.user.id}
+            isOwner={isOwner}
+            isModerator={isModerator}
+          />
         </div>
 
         {/* Sidebar - Members */}

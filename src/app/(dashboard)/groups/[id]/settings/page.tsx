@@ -28,6 +28,7 @@ interface Group {
   inviteCode: string;
   inviteEnabled: boolean;
   studyTitle: string;
+  ownerId: string;
   members: Array<{
     id: string;
     userId: string;

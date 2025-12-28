@@ -51,9 +51,6 @@ export async function GET(request: NextRequest) {
       },
       include: {
         group: {
-          where: {
-            isActive: true,
-          },
           include: {
             study: {
               select: {
@@ -74,6 +71,9 @@ export async function GET(request: NextRequest) {
         },
       },
     });
+
+    // Filter to only active groups
+    const activeMemberships = memberships.filter((m) => m.group && m.group.isActive);
 
     // Also get groups where user is owner
     const ownedGroups = await prisma.group.findMany({
@@ -103,7 +103,7 @@ export async function GET(request: NextRequest) {
     // Combine and deduplicate
     const groupMap = new Map();
     
-    memberships.forEach((m) => {
+    activeMemberships.forEach((m) => {
       if (m.group) {
         groupMap.set(m.group.id, {
           id: m.group.id,

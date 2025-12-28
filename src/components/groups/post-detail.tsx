@@ -44,7 +44,7 @@ interface Post {
   createdAt: string;
   isPinned: boolean;
   user: User;
-  replies: Reply[];
+  replies?: Reply[];
   _count: {
     replies: number;
   };
@@ -222,10 +222,10 @@ export function PostDetail({
           {/* Replies Section */}
           <div className="border-t border-gray-200 pt-6">
             <h3 className="text-lg font-semibold mb-4">
-              {post.replies.length} {post.replies.length === 1 ? "Reply" : "Replies"}
+              {post.replies?.length || 0} {(post.replies?.length || 0) === 1 ? "Reply" : "Replies"}
             </h3>
 
-            {post.replies.length === 0 ? (
+            {!post.replies || post.replies.length === 0 ? (
               <p className="text-gray-500 text-sm">No replies yet. Be the first to reply!</p>
             ) : (
               <div className="space-y-4">

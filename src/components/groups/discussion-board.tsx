@@ -7,18 +7,28 @@ import { CreatePostModal } from "./create-post-modal";
 import { PostCard } from "./post-card";
 import { PostDetail } from "./post-detail";
 
+interface User {
+  id: string;
+  name: string | null;
+  email: string;
+  image: string | null;
+}
+
+interface Reply {
+  id: string;
+  content: string;
+  createdAt: string;
+  user: User;
+}
+
 interface Post {
   id: string;
   title: string;
   content: string;
   createdAt: string;
   isPinned: boolean;
-  user: {
-    id: string;
-    name: string | null;
-    email: string;
-    image: string | null;
-  };
+  user: User;
+  replies?: Reply[];
   _count: {
     replies: number;
   };
